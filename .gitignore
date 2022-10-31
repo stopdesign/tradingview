@@ -1,10 +1,11 @@
-/cache/
-/res/
 /tmp/
 /bak/
 *_local.*
 *.sqlite3*
 *.bak
+
+/cache/*
+!/cache/code/
 
 # File system caches
 .DS_Store
