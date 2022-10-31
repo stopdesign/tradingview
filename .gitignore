@@ -1,0 +1,32 @@
+/cache/
+/res/
+/tmp/
+/bak/
+*_local.*
+*.sqlite3*
+*.bak
+
+# File system caches
+.DS_Store
+._*
+
+# misc
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# IDE system files
+.idea
+.vscode
+.ipynb_checkpoints
+*.sublime-workspace
+*.sublime-project
+
+# Deploy
+.env
+.venv
+
+# Temporary files
+*.py[oc]
+*~
