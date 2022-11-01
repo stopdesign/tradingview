@@ -112,13 +112,15 @@ def get_inputs(strategy, dir_name):
 
 
 def main():
+    global ERR_CNT
+
     strategies_list = "../cache/strategies.jsonl"
     code_dir = "../cache/code"
 
     f = open(strategies_list)
 
     for i, ln in list(enumerate(f.readlines())):
-        if ERR_CNT > 10:
+        if ERR_CNT > 5:
             cprint("Too many errors", "red")
             return
 
@@ -130,32 +132,41 @@ def main():
         file_name = f"{uid}-{file_name}"
         file_path = f"{code_dir}/{file_name}"
 
-        print()
+        print(flush=True)
 
         if not os.path.exists(file_path):
             os.mkdir(file_path)
 
-        if not os.path.isfile(os.path.join(file_path, "readme.md")):
-            print(i, "README", file_name)
-            get_html(file_name, file_path)
-            sleep(DELAY)
-        else:
-            print(i, "SKIP README", file_name)
+        try:
 
-        if not os.path.isfile(os.path.join(file_path, "pine.json")):
-            print(i, "PINE", file_name)
-            get_source(strategy, file_path)
-            sleep(DELAY)
-        else:
-            print(i, "SKIP PINE", file_name)
+            if not os.path.isfile(os.path.join(file_path, "readme.md")):
+                print(i, "README", file_name)
+                get_html(file_name, file_path)
+                sleep(DELAY)
+            else:
+                print(i, "SKIP README", file_name)
 
-        if not os.path.isfile(os.path.join(file_path, "translate.json")):
-            print(i, "INPUT", file_name)
-            get_inputs(strategy, file_path)
-            sleep(DELAY)
-        else:
-            print(i, "SKIP INPUT", file_name)
+            if not os.path.isfile(os.path.join(file_path, "pine.json")):
+                print(i, "PINE", file_name)
+                get_source(strategy, file_path)
+                sleep(DELAY)
+            else:
+                print(i, "SKIP PINE", file_name)
 
+            if not os.path.isfile(os.path.join(file_path, "translate.json")):
+                print(i, "INPUT", file_name)
+                get_inputs(strategy, file_path)
+                sleep(DELAY)
+            else:
+                print(i, "SKIP INPUT", file_name)
+
+            # при успехе немного уменьшаю количество ошибок
+            ERR_CNT -= 0.2
+    
+        except Exception as e:
+            cprint(f"Error: {e}", "red")
+            ERR_CNT += 1
+        
 
 if __name__ == "__main__":
     main()
