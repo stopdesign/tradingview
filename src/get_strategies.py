@@ -1,14 +1,34 @@
 """
 Сохраняет список публично доступных стратегий.
+
+Все результаты выгрузить нельзя, поэтому приходится запрашивать части списка
+через поиск, перебирая комбинации букв.
+
+Загрузка занимает примерно час, если хорошо перекрывать все буквы.
 """
 
+import itertools
 import json
+import string
 from datetime import datetime
 from time import sleep
 
 import requests
 
 URL = "https://www.tradingview.com/pubscripts-suggest-json/?search=%s&offset=%s"
+TIMEOUT = 5
+
+
+def too_many_results(query="a"):
+    for _ in range(10):
+        try:
+            url = URL % (query, 999)
+            r = requests.get(url, timeout=TIMEOUT)
+            return bool(r.json().get("next"))
+        except Exception as e:
+            print(f"ERROR at {url}: {e}")
+            sleep(5)
+    raise Exception("Too many errors")
 
 
 def get_list(query="a", offset=0):
@@ -17,44 +37,70 @@ def get_list(query="a", offset=0):
 
     while offset < 1000:
         url = URL % (query, offset)
-        r = requests.get(url)
-        if r.status_code != 200:
-            break
 
-        results += r.json()["results"]
-
-        print(r.status_code, len(r.text), end=" ")
         try:
-            next_link = r.json()["next"]
-            # print(next_link)
+            r = requests.get(url, timeout=TIMEOUT)
+            res_json = r.json()
+            print(len(res_json.get("results", "")), end=", ", flush=True)
+        except Exception as e:
+            print(f"ERROR at {url}: {e}")
+            sleep(5)
+            continue
+
+        results += res_json["results"]
+
+        if next_link := res_json.get("next"):
             offset = int(next_link.split("=")[1])
             if offset == 1000:
                 offset = 999
-        except Exception as e:
-            print("ERROR", e)
-            print(r.text)
+        else:
             break
-        print()
-        sleep(0.5)
 
-    # print("done")
-    # print(len(results))
+        sleep(0.5)
 
     return results
 
 
 def main():
-    queries = ["strat"]
-    queries += list("abcdefghijklmnopqrstuvwxyz0123456789")
-    queries += ["th", "er", "on", "an", "the", "ss", "ee", "tt", "ff"]
+
+    queries = []
+
+    # NORMAL MODE, 45 queries
+    # queries += list("abcdefghijklmnopqrstuvwxyz0123456789")
+    # queries += ["th", "er", "on", "an", "the", "ss", "ee", "tt", "ff"]
+
+    # HARDCORE MODE, 677 or 1297 queries
+    alphanum = string.ascii_lowercase  # + string.digits
+    for l1, l2 in itertools.product(alphanum, alphanum):
+        queries.append(f"{l1}{l2}")
+
+    print(f"Total queries: {len(queries)}")
 
     results = []
 
+    queries_plus = []
+    
     for query in queries:
-        print()
+        # Проверить, можно ли получить все результаты
+        if too_many_results(query):
+            print(query, "many")
+            # добавить перебор еще одной буквы
+            for l1, l2 in itertools.product([query], alphanum):
+                queries_plus.append(f"{l1}{l2}")
+        else:
+            print(query, "OK")
+            queries_plus.append(query)
+        sleep(0.3)
+
+    queries_plus += ["strat"]
+    queries_plus += list("0123456789")
+
+    print(f"Total queries_plus: {len(queries_plus)}")
+
+    for query in queries_plus:
         print(query)
         results += get_list(query)
-        print(len(results))
+        print(f"\nResults: {len(results)}\n")
 
         txt = ""
         ids = {}

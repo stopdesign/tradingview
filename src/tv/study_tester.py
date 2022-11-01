@@ -231,7 +231,11 @@ class TVStudyTester:
         Поменять настройки и стратегию, если надо.
         Распарсить результат.
         """
-        strategy = self.get_strategy_info(uid)
+        try:
+            strategy = self.get_strategy_info(uid)
+        except KeyError:
+            cprint(f"Unknown Strategy: {uid}", "red")
+            return
 
         try:
             # Получить параметры стратегии (inputs)

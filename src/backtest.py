@@ -34,7 +34,11 @@ def main(**kwargs):
         # print(symbol)
         # print("========\n")
         for uid in STRATEGIES:
-            strategy = tv.get_strategy_info(uid)
+            try:
+                strategy = tv.get_strategy_info(uid)
+            except KeyError:
+                cprint(f"Unknown Strategy: {uid}", "red")
+                continue 
             print()
             print(strategy["scriptName"], "//", strategy["author"]["username"])
             for tf in TIMEFRAMES:
