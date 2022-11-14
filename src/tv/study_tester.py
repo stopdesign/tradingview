@@ -15,19 +15,7 @@ import requests
 import websocket
 from termcolor import cprint
 
-from tv.utils import round_floats, ts_to_dt
-
-
-def prependHeader(st):
-    return "~m~" + str(len(st)) + "~m~" + st
-
-
-def constructMessage(func, paramList):
-    return json.dumps({"m": func, "p": paramList}, separators=(",", ":"))
-
-
-def createMessage(func, paramList):
-    return prependHeader(constructMessage(func, paramList))
+from tv.utils import round_floats, ts_to_dt, create_message, prepend_header
 
 
 class TVStudyTester:
@@ -84,12 +72,12 @@ class TVStudyTester:
         return test_id in self.done
 
     def send_msg(self, func, args):
-        msg = createMessage(func, args)
+        msg = create_message(func, args)
         # cprint(msg[:200], "yellow")
         self.ws.send(msg)
 
     def send_raw_msg(self, message):
-        msg = prependHeader(message)
+        msg = prepend_header(message)
         # cprint(msg[:200], "green")
         self.ws.send(msg)
 
