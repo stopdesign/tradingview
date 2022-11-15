@@ -47,7 +47,7 @@ class TVDataLoader:
         return prefix + "_" + sid
 
     def connect(self):
-        self.ws = websocket.create_connection(self.ws_url, timeout=10)
+        self.ws = websocket.create_connection(self.ws_url, timeout=5)
 
         self.connected = True
         self._symbol_index = 0
@@ -66,7 +66,7 @@ class TVDataLoader:
         dt_0 = datetime.utcnow()
 
         while True:
-            if (datetime.utcnow() - dt_0).total_seconds() > 15:
+            if (datetime.utcnow() - dt_0).total_seconds() > 10:
                 cprint("TIMEOUT", "red")
                 return
 
@@ -112,9 +112,22 @@ class TVDataLoader:
 
     def save_result(self):
 
-        df = pd.DataFrame(self.result, columns=["ts", "o", "h", "l", "c", "v"])
+        if not self.result:
+            return
 
-        df["v"] = df["v"].astype("Int64")
+        # Колонки в данных TV
+        columns = self._symbol_info["columns"]
+
+        # Почему-то данные close присылают в 4 одинаковых колонках
+        columns = "cccc" if columns == "c" else columns
+
+        columns = ["ts"] + list(columns)
+
+        df = pd.DataFrame(self.result, columns=columns)
+
+        if "v" in columns:
+            df["v"] = df["v"].astype("Int64")
+
         df["ts"] = df["ts"].astype("Int64")
         df["dt"] = pd.to_datetime(df["ts"], unit="s")
 
@@ -127,15 +140,16 @@ class TVDataLoader:
         res_raw = json.loads(msg)
         symbol_info = res_raw["p"][2]
 
-        # cprint(json.dumps(res_raw, indent=2), "white")
+        cprint(json.dumps(res_raw, indent=2), "white")
 
         res = {
             "full_name": symbol_info["full_name"],
             "description": symbol_info["description"],
-            "currency_id": symbol_info["currency_id"],
+            "currency_id": symbol_info.get("currency_id"),
             "exchange": symbol_info["exchange"],
             "type": symbol_info["type"],
             "timezone": symbol_info["timezone"],
+            "columns": symbol_info["visible_plots_set"],
             "subsessions": [],
             "ss_str": "",
         }
@@ -153,7 +167,8 @@ class TVDataLoader:
             "Currency: {currency_id}\n"
             "Exchange: {exchange}\n"
             "Timezone: {timezone}\n"
-            "Sessions: {ss_str}\n".format(**res)
+            "Sessions: {ss_str}\n"
+            "Columns: {columns}\n".format(**res)
         ).strip()
 
         cprint(f"\n{txt}\n", "blue")
@@ -173,9 +188,7 @@ class TVDataLoader:
         params = [self.sid, self.symbol_id, {"symbol": symbol}]
         self.send_msg("resolve_symbol", params)
         if msg := self.wait_for_result("symbol_resolved"):
-            symbol_info = self.parse_symbol_info(msg)
-            symbol = symbol_info["full_name"]
-            currency_id = symbol_info["currency_id"]
+            self._symbol_info = self.parse_symbol_info(msg)
         else:
             cprint("resolve_symbol error", "red")
             return
@@ -192,11 +205,12 @@ class TVDataLoader:
             "symbol": {
                 "backadjustment": "default",
                 "adjustment": "splits",
-                "currency-id": currency_id,
                 "session": self.session,
-                "symbol": symbol,
+                "symbol": self._symbol_info["full_name"],
             },
         }
+        if currency_id := self._symbol_info["currency_id"]:
+            params["symbol"]["currency-id"] = currency_id
         params = [self.sid, self.symbol_id, params]
         self.send_msg("resolve_symbol", params)
 
