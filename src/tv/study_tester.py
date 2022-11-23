@@ -431,6 +431,7 @@ class TVStudyTester:
                 "pineId": strategy["scriptIdPart"],
                 "timeframe": timeframe,
                 "instrument": symbol,
+                "trades": trades,
             },
             **perf,
         )
