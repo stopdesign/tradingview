@@ -133,6 +133,7 @@ class TVDataLoader:
 
         df = df.set_index("dt", drop=True).sort_index(ascending=True)
 
+        df.to_csv(f'{self.symbol}_{self.timeframe}.csv')
         print(df)
 
     def parse_symbol_info(self, msg):
