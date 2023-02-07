@@ -79,8 +79,8 @@ class TVDataLoader:
             for msg in results.split("~m~"):
                 # Разбор сообщений разного типа
 
-                if len(msg) > 10:
-                    cprint(f"{len(msg):>7} {msg[:100]}", "white")
+                # if len(msg) > 10:
+                #     cprint(f"{len(msg):>7} {msg[:100]}", "white")
 
                 if "timescale_update" in msg:
                     self.parse_result(msg)
@@ -110,7 +110,7 @@ class TVDataLoader:
 
             self.result += [row["v"] for row in series]
 
-    def save_result(self):
+    def format_result(self):
 
         if not self.result:
             return
@@ -133,14 +133,14 @@ class TVDataLoader:
 
         df = df.set_index("dt", drop=True).sort_index(ascending=True)
 
-        print(df)
+        return df
 
     def parse_symbol_info(self, msg):
 
         res_raw = json.loads(msg)
         symbol_info = res_raw["p"][2]
 
-        cprint(json.dumps(res_raw, indent=2), "white")
+        # cprint(json.dumps(res_raw, indent=2), "white")
 
         res = {
             "full_name": symbol_info["full_name"],
@@ -241,4 +241,4 @@ class TVDataLoader:
 
         cprint(f"\n{ts_to_dt(self._first_ts * 1000)}\n", "blue")
 
-        self.save_result()
+        return self.format_result()

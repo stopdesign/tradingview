@@ -1,4 +1,5 @@
 import base64
+from collections import defaultdict
 import io
 import json
 import os
@@ -255,6 +256,62 @@ class TVStudyTester:
 
         self.wait_for_result(strategy, symbol, timeframe)
 
+    def convert_trades_format(self, trades):
+        """
+        Преобразует сделки из формата TV в мой формат.
+        """
+
+        trades_by_time = defaultdict(list)
+        res = []
+
+        for t in trades:
+            so = t["e"]["tp"][0]  # s или l
+
+            if so == "l":
+                sig_o, side_o, side_c = "long", "buy", "sell"
+            elif so == "s":
+                sig_o, side_o, side_c = "short", "sell", "buy"
+            else:
+                sig_o, side_o, side_c = "xxx", "xxx", "xxx"
+
+            etm = t["e"]["tm"]
+            e = {
+                "dt": str(ts_to_dt(etm)),
+                "time": etm // 1000,
+                "price": t["e"]["p"],
+                "profit": 0,
+                "amount": t["q"],
+                "side": side_o,
+                "signal": sig_o,
+            }
+            trades_by_time[etm].append(e)
+
+            xtm = t["x"]["tm"] - 1000 * 60
+            x = {
+                "dt": str(ts_to_dt(xtm)),
+                "time": xtm // 1000,
+                "price": t["x"]["p"],
+                "profit": 0,
+                "amount": t["q"],
+                "side": side_c,
+                "signal": "close",
+            }
+            trades_by_time[xtm].append(x)
+
+            # print(e)
+            # print(x)
+            # print()
+            res.append(e)
+            res.append(x)
+
+        # # Merge trades by time
+        # for trades in trades_by_time.values():
+        #     trade = trades[0]
+        #     trade["amount"] = sum([t["amount"] for t in trades])
+        #     res.append(trade)
+        
+        return sorted(res, key=lambda t: t["time"])
+
     def parse_result(self, result, strategy, symbol, timeframe):
 
         res = re.findall(r'"ns":{"d":"({\\"data.*})","indexes"', result)
@@ -277,6 +334,14 @@ class TVStudyTester:
         performance = jjj["report"]["performance"]
         trades = jjj["report"]["trades"]
         settings = jjj["report"]["settings"]
+
+        # cprint("------")
+        # cprint(json.dumps(trades_1[:10], indent=2), "green")
+        # print("------")
+        # cprint(json.dumps(performance, indent=2), "blue")
+        # print("------")
+        # cprint(json.dumps(settings, indent=2), "red")
+        # print("------")
 
         self.report(strategy, symbol, timeframe, performance, trades, settings)
 
@@ -434,6 +499,11 @@ class TVStudyTester:
             },
             **perf,
         )
+
+        trades_conv = self.convert_trades_format(trades)
+        for t in trades_conv:
+            print(json.dumps(t, indent=None, default=str))
+        print()
 
         with open(self.output, "a") as f:
             res = json.dumps(result, indent=None, default=str) + "\n"
