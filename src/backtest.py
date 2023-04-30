@@ -22,7 +22,7 @@ def main(**kwargs):
     )
 
     # study error
-    # tv.test_strategy("5I54X0Z7", "AMEX:ROBO", "60")
+    # tv.test_strategy("Dxqv8ftu", "AMEX:ROBO", "30")
 
     # print("STRATEGIES", len(STRATEGIES))
     # print("INSTRUMENTS", len(INSTRUMENTS))
@@ -38,7 +38,7 @@ def main(**kwargs):
                 strategy = tv.get_strategy_info(uid)
             except KeyError:
                 cprint(f"Unknown Strategy: {uid}", "red")
-                continue 
+                continue
             print()
             print(strategy["scriptName"], "//", strategy["author"]["username"])
             for tf in TIMEFRAMES:

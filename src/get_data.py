@@ -24,7 +24,9 @@ def main(**kwargs):
     session = kwargs.get("session")
 
     dl = TVDataLoader(AUTH_TOKEN, symbol, timeframe, session)
-    dl.run()
+    df = dl.run()
+
+    print(df)
 
 
 if __name__ == "__main__":

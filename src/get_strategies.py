@@ -21,8 +21,8 @@ TIMEOUT = 5
 
 def too_many_results(query="a"):
     for _ in range(10):
+        url = URL % (query, 999)
         try:
-            url = URL % (query, 999)
             r = requests.get(url, timeout=TIMEOUT)
             return bool(r.json().get("next"))
         except Exception as e:
@@ -79,7 +79,7 @@ def main():
     results = []
 
     queries_plus = []
-    
+
     for query in queries:
         # Проверить, можно ли получить все результаты
         if too_many_results(query):

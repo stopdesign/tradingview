@@ -1,14 +1,14 @@
 import base64
-from collections import defaultdict
 import io
 import json
 import os
 import random
 import re
 import zipfile
+from collections import defaultdict
 from datetime import datetime
 from functools import cache
-from string import ascii_lowercase
+from string import ascii_letters
 from time import sleep
 
 import numpy
@@ -16,14 +16,15 @@ import requests
 import websocket
 from termcolor import cprint
 
-from tv.utils import round_floats, ts_to_dt, create_message, prepend_header
+from settings import BADJ, ETH
+from tv.utils import create_message, prepend_header, round_floats, ts_to_dt
 
 
 class TVStudyTester:
 
     code_base_dir = "../cache/code"
 
-    ws_url = "wss://prodata.tradingview.com/socket.io/websocket"
+    ws_url = "wss://prodata.tradingview.com/socket.io/websocket?type=chart"
     pine_facade_url = "https://pine-facade.tradingview.com/pine-facade"
 
     symbol = None
@@ -66,7 +67,10 @@ class TVStudyTester:
         return f"sds_sym_{self._symbol_index}"
 
     def generate_chart_session_id(self):
-        return "cs_" + "".join(random.choice(ascii_lowercase) for _ in range(12))
+        return "cs_" + "".join(random.choice(ascii_letters) for _ in range(12))
+
+    def generate_quote_session_id(self):
+        return "qs_" + "".join(random.choice(ascii_letters) for _ in range(12))
 
     def is_done(self, uid, symbol, tf):
         test_id = f"{uid}_{symbol}_{tf}"
@@ -74,19 +78,26 @@ class TVStudyTester:
 
     def send_msg(self, func, args):
         msg = create_message(func, args)
-        # cprint(msg[:200], "yellow")
+        # cprint(f">>> {msg[:200]}\n", "yellow")
         self.ws.send(msg)
 
     def send_raw_msg(self, message):
         msg = prepend_header(message)
-        # cprint(msg[:200], "green")
+        # cprint(f">>> {msg[:200]}\n", "green")
         self.ws.send(msg)
 
     def connect(self):
         self.ws = websocket.create_connection(self.ws_url, timeout=15)
         self.sid = self.generate_chart_session_id()
+        self.qid = self.generate_quote_session_id()
         self.send_msg("set_auth_token", [self.auth_token])
+        self.send_msg("set_locale", ["en", "US"])
         self.send_msg("chart_create_session", [self.sid, ""])
+        self.send_msg("switch_timezone", [self.sid, "America/Los_Angeles"])
+        self.send_msg("quote_create_session", [self.qid])
+
+        self.log_response()
+
         self.connected = True
 
         # Reset current state
@@ -99,14 +110,33 @@ class TVStudyTester:
         return self.by_uid[uid]
 
     def resolve_symbol(self, symbol):
+        # stocks
+        # adjustment: splits / dividends
+        params = {
+            "adjustment": "splits",
+            "currency-id": "USD",
+            "session": "us_regular",
+            "symbol": symbol,
+        }
         if "!" in symbol:
             # Товарные фьючерсы
-            param = '={"adjustment":"splits","currency-id":"XTVUSX","session":"us_regular","symbol":"%s"}' % symbol
+            params["currency-id"] = "XTVUSX"
+            if BADJ:
+                params["backadjustment"] = "default"
+            if ETH:
+                params["session"] = "regular"
         else:
-            # Акции и другое говно
-            param = '={"adjustment":"splits","currency-id":"USD","session":"us_regular","symbol":"%s"}' % symbol
+            # Всё остальное
+            if ETH:
+                params["session"] = "extended"
+
+        params_str = "=" + json.dumps(params, separators=(",", ":"))
+
         self._symbol_index += 1
-        self.send_msg("resolve_symbol", [self.sid, self.symbol_id, param])
+        self.send_msg("quote_add_symbols", [self.qid, params_str])
+        self.send_msg("resolve_symbol", [self.sid, self.symbol_id, params_str])
+
+        self.log_response()
 
     def update_setting(self, strategy, symbol, timeframe, inputs):
 
@@ -128,16 +158,34 @@ class TVStudyTester:
             self.timeframe = timeframe
             self.symbol = symbol
 
+        self.log_response()
+
         if self.timeframe != timeframe:
             param = [self.sid, "sds_1", "s1", self.symbol_id, timeframe]
             self.send_msg("modify_series", [*param, ""])
             self.timeframe = timeframe
+
+        self.log_response()
 
         # Если стратегия изменилась
         if self.pine_id != pine_id:
             st_params = ["st1", "st1", "sds_1", "StrategyScript@tv-scripting-101!"]
             self.send_msg("create_study", [self.sid, *st_params, inputs])
             self.pine_id = pine_id
+
+        self.log_response()
+
+    def log_response(self):
+        pass
+        # self.ws.settimeout(1)
+        # try:
+        #     while True:
+        #         results = self.ws.recv()
+        #         for msg in results.split("~m~"):
+        #             if len(msg) > 10:
+        #                 cprint(f"<<< {msg[:500]}\n", "white")
+        # except:
+        #     print("end response")
 
     @cache
     def fetch_inputs(self, pine_id):
@@ -309,7 +357,7 @@ class TVStudyTester:
         #     trade = trades[0]
         #     trade["amount"] = sum([t["amount"] for t in trades])
         #     res.append(trade)
-        
+
         return sorted(res, key=lambda t: t["time"])
 
     def parse_result(self, result, strategy, symbol, timeframe):
@@ -375,8 +423,12 @@ class TVStudyTester:
 
                 # Data update
                 if 'm":"du"' in msg and ('ns":{"d":"{' in msg or 'ns":{"d":{' in msg):
-                    self.parse_result(msg, strategy, symbol, timeframe)
-                    return True
+                    try:
+                        self.parse_result(msg, strategy, symbol, timeframe)
+                        return True
+                    except Exception as e:
+                        cprint(f"PARSE ERROR, {test_id}, {e}", "red")
+                        return
 
                 if "study_completed" in msg:
                     cprint(f"NO DATA, {test_id}", "yellow")
@@ -454,7 +506,7 @@ class TVStudyTester:
         perf["altMaxDrawDownPercent"] = max_dd / self.deposit
 
         # R^2
-        if trades:
+        if trades and len(trades) > 1:
             x = []
             y = []
             for trade in trades:
@@ -487,8 +539,7 @@ class TVStudyTester:
             ).format(**perf),
         )
 
-        perf = round_floats(perf)
-
+        perf = dict(round_floats(perf)) # type: ignore
         result = dict(
             {
                 "scriptName": strategy["scriptName"],
@@ -500,10 +551,10 @@ class TVStudyTester:
             **perf,
         )
 
-        trades_conv = self.convert_trades_format(trades)
-        for t in trades_conv:
-            print(json.dumps(t, indent=None, default=str))
-        print()
+        # trades_conv = self.convert_trades_format(trades)
+        # for t in trades_conv:
+        #     print(json.dumps(t, indent=None, default=str))
+        # print()
 
         with open(self.output, "a") as f:
             res = json.dumps(result, indent=None, default=str) + "\n"

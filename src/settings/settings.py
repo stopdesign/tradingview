@@ -21,3 +21,9 @@ INSTRUMENTS = ["AMEX:SPY", "AMEX:URA"]
 
 
 TIMEFRAMES = ["30", "60"]
+
+
+BADJ = True
+
+
+ETH = False

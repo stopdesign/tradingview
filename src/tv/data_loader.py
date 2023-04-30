@@ -6,6 +6,7 @@ from string import ascii_letters
 import pandas as pd
 import websocket
 from termcolor import cprint
+
 from tv.utils import create_message, dt_to_ts, ts_to_dt
 
 
@@ -227,7 +228,7 @@ class TVDataLoader:
         # пока не вернутся все доступные данные
         while self._status in ["start", "limit"]:
 
-            cprint(f"\n{ts_to_dt(self._first_ts * 1000)}\n", "green")
+            cprint(f"{ts_to_dt(self._first_ts * 1000)} - {len(self.result)}\n", "green")
 
             # Передвинуть дату конца Replay
             self.send_msg("replay_reset", [self.rid, "step-1", self._first_ts])
@@ -239,6 +240,6 @@ class TVDataLoader:
             else:
                 self._status = "done"
 
-        cprint(f"\n{ts_to_dt(self._first_ts * 1000)}\n", "blue")
+        cprint(f"{ts_to_dt(self._first_ts * 1000)} - {len(self.result)}\n", "blue")
 
         return self.format_result()
